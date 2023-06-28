@@ -10,8 +10,8 @@ from box import Box
 from gurobipy import GRB
 from torch_scatter import scatter
 
-from src.model.ConstructiveAgent import ConstructiveBCAgent
-from src.model.IndepBCAgent import IndependentBCAgent
+from src.model.autoregressive_agent import ConstructiveBCAgent
+from src.model.coarsenig_agent import IndependentBCAgent
 from src.utils.graph_utils import get_current_gs, get_cut_value
 from src.utils.graph_utils import get_graph_label, get_x_mat, get_contracted_gs
 from src.utils.train_utils import set_seed
@@ -19,51 +19,9 @@ from src.utils.train_utils import set_seed
 EPS = 1e-6
 
 
-def get_exact_RCI(x_mat, demand, capacity):
-    tot_start = perf_counter()
-    n = len(x_mat)
-    k = numpy.ceil(sum(demand) / capacity)
-    list_s, list_rhs, list_z = [], [], []
-
-    for M in range(int(k)):
-        m = gp.Model()
-        w = m.addVars(n, n, obj=x_mat, name='w')
-        y = m.addVars(n, vtype=GRB.BINARY, name='y')
-
-        m.addConstrs(w[i, j] >= y[j] - y[i] for i in range(n) for j in range(n))
-        m.addConstr(y[0] == 0)
-        m.addConstr(sum(demand[i] * y[i] for i in range(1, n)) >= M * capacity + 1)
-
-        m.setParam("OutputFlag", False)
-        # m.setParam("Cuts", 0)
-        # m.setParam("Presolve", 0)
-        # m.setParam("Heuristics", 0)
-        m.optimize()
-
-        z = m.ObjVal
-        if z < 2 * (M + 1) - 1e-6:
-            y_val = m.getAttr('x', y)
-            s = [i for i in y_val.keys() if y_val[i] > 0.]
-
-            #         if s not in list_s:
-            rhs = numpy.ceil(demand[s].sum() / capacity)
-            list_s.append([numpy.array([u + 1 for u in s])])
-            # list_s.append([[u + 1 for u in s]])
-            list_rhs.append(rhs)
-            list_z.append(z)
-
-    tot_time = perf_counter() - tot_start
-
-    info = [tot_time, 0.0, 0.0, 0.0, numpy.mean([len(s) for s in list_s])]
-
-    return list_s, list_rhs, list_z, info
-
-
-def get_learned_seq_RCI(edge, edge_x, demand, capacity):
-    config = Box.from_yaml(filename=os.path.join(os.getcwd(), os.pardir, os.pardir, 'config', 'constructive_bc_config.yaml'))
-    model_pt = "../../checkpoints/constructive_220603055004_best.pt"
-    # config = Box.from_yaml(filename=os.path.join(os.getcwd(), 'config', 'seq_bc_config.yaml'))
-    # model_pt = "./checkpoints/bcagent_220111175256.pt"
+def get_learned_autoregressive_RCI(edge, edge_x, demand, capacity):
+    config = Box.from_yaml(filename=os.path.join(os.getcwd(), os.pardir, os.pardir, 'config', 'autoregressive_config.yaml'))
+    model_pt = "../../checkpoints/autoregressive_pretrained.pt"
 
     device = config.train.device if torch.cuda.is_available() else 'cpu'
     set_seed(seed=config.train.seed,
@@ -129,91 +87,12 @@ def get_learned_seq_RCI(edge, edge_x, demand, capacity):
 
     return list_s, list_rhs, list_z, info
 
+def get_learned_coarsening_RCI(edge, edge_x, demand, capacity):
+    config = Box.from_yaml(filename=os.path.join(os.getcwd(), os.pardir, os.pardir, 'config', 'coarsening_config.yaml'))
+    model_pt = "../../checkpoints/coarsening_pretrained.pt"  # no pos_weight
 
-def get_learned_ind_RCI(edge, edge_x, x_mat, demand, capacity):
-    config = Box.from_yaml(filename=os.path.join(os.getcwd(), os.pardir, os.pardir, 'config', 'ind_bc_config.yaml'))
-    # model_pt = "../../checkpoints/ind_bcagent_220119055108.pt"
-    model_pt = "../../checkpoints/ind_bcagent_220527064336_best.pt"
-
-    device = config.train.device if torch.cuda.is_available() else 'cpu'
-    set_seed(seed=config.train.seed,
-             use_cuda='cuda' in device)
-
-    tot_start = perf_counter()
-    load_start = perf_counter()
-    model = IndependentBCAgent(**config.model)
-    model.load_state_dict(torch.load(model_pt, map_location=device))
-    # model = model.to(device)
-    model.eval()
-    load_time = perf_counter() - load_start
-
-    # print(edge, edge_x, demand, capacity)
-
-    graph_start = perf_counter()
-    k = numpy.ceil(sum(demand) / capacity)
-    graph = get_graph_based_on_x(edge, edge_x, demand, capacity, False, False)
-    gs = get_graph_label(graph, with_label=False)
-    # gs, _ = get_graph_label(graph)
-    graph_time = perf_counter() - graph_start
-    x_mat = get_x_mat(graph, return_dense=True)
-    # x_mat, gs = x_mat.to(device), gs.to(device)
-
-    with torch.no_grad():
-        forward_start = perf_counter()
-        # gs = dgl.batch(g_list)
-        probs = model(gs)
-        s_pred = probs.view(-1, graph.num_nodes())
-        forward_time = perf_counter() - forward_start
-
-        derand_start = perf_counter()
-        s_pred[:, 0] = 0.
-        s_derand = torch.round(s_pred)
-        max_idx = torch.argmax(s_pred, dim=1)
-        zero_idx = torch.count_nonzero(s_derand, dim=1) == 0
-        s_derand[zero_idx, max_idx[zero_idx]] = 1.
-        s_derand = s_derand.tolist()
-        cut_pred = [get_cut_value(graph, s) for s in s_derand]
-
-        # s_derand, cut_pred = [], []
-        # g_list = dgl.unbatch(gs)
-        # for g, p in zip(g_list, s_pred):
-        #     s, c = get_deterministic_sol(g, x_mat, p)
-        #     # s, c = get_best_sample(g, x_mat, p, 50000)
-        #     # if s is None:
-        #     #     s_derand.append(None)
-        #     #     cut_pred.append(3 * (m + 1))
-        #     # else:
-        #     s_derand.append(s.tolist())
-        #     cut_pred.append(c)
-        derand_time = perf_counter() - derand_start
-
-        list_s, list_rhs, list_z = [], [], []
-        demand = graph.ndata['demand']
-        capacity = graph.ndata['capacity'][0]
-        for m in range(int(k)):
-            # if cut_pred[m] < 2 * (m + 1) - EPS:
-            rhs = (demand.view(-1) * torch.tensor(s_derand[m])).sum()
-            rhs = rhs / capacity
-            rhs = torch.ceil(rhs)
-            if cut_pred[m] < 2 * rhs - EPS:
-                s = numpy.nonzero(s_derand[m])
-                list_s.append([u + 1 for u in s])
-                list_rhs.append(rhs.item())
-                list_z.append(cut_pred[m])
-
-        tot_time = perf_counter() - tot_start
-
-        info = [tot_time, load_time, graph_time, forward_time, derand_time, numpy.mean([len(s) for s in list_s])]
-
-        return list_s, list_rhs, list_z, info
-
-
-def get_learned_imp_RCI(edge, edge_x, demand, capacity):
-    # config = Box.from_yaml(filename=os.path.join(os.getcwd(), os.pardir, os.pardir, 'config', 'imp_bc_config.yaml'))
-    # model_pt = "../../checkpoints/imp_bcagent_220613114455_best.pt"  # no pos_weight
-
-    config = Box.from_yaml(filename=os.path.join(os.getcwd(), os.pardir, os.pardir, 'config', 'oneshot_config.yaml'))
-    model_pt = "../../checkpoints/ind_bcagent_220903235415_best.pt"
+    # config = Box.from_yaml(filename=os.path.join(os.getcwd(), os.pardir, os.pardir, 'config', 'oneshot_config.yaml'))
+    # model_pt = "../../checkpoints/oneshot_pretrained.pt"
 
     device = config.train.device if torch.cuda.is_available() else 'cpu'
     set_seed(seed=config.train.seed,
@@ -251,25 +130,12 @@ def get_learned_imp_RCI(edge, edge_x, demand, capacity):
                 probs = model(gs)
                 break
 
-            # if new_size >= 3:
-            #     gs, m_nids, mapping = get_contracted_gs(gs, probs, new_size, m_nids)
-            # else:
-            #     break
-
         cur_nids = list(m_nids.keys())
         nid_chunk = torch.split(torch.tensor(cur_nids, device=gs.device), gs.batch_num_nodes().tolist())
 
         s_pred, cut_pred = [], []
         for b_id, nid in enumerate(nid_chunk):
             sets = torch.zeros(graph.num_nodes(), device=gs.device)
-
-            # x = gs.edata['x_val'][gs.edge_ids([nid[0] for _ in range(len(nid[1:]))], nid[1:])]
-            # min_nid = nid[x.argmin() + 1].item()
-            #
-            # for sn in nid.tolist():
-            #     nodes = m_nids[sn]
-            #     if sn == min_nid:
-            #         sets[nodes - m_nids[nid[0].item()][0]] = 1
 
             s_prob = probs[nid].view(-1)
             s_prob[0] = 0.
@@ -298,8 +164,6 @@ def get_learned_imp_RCI(edge, edge_x, demand, capacity):
             if cut_pred[m] < 2 * rhs - EPS:
                 # rhs = 2 * torch.ceil(rhs)
                 s = numpy.nonzero(s_pred[m].tolist())
-                # print(len(s), graph.num_nodes(), s)
-                # if 0 < len(s[0]) < graph.num_nodes():
                 list_s.append([u + 1 for u in s])
                 list_rhs.append(rhs.item())
                 list_z.append(cut_pred[m])
@@ -311,7 +175,6 @@ def get_learned_imp_RCI(edge, edge_x, demand, capacity):
         return list_s, list_rhs, list_z, info
 
 
-# def get_graph_based_on_x(demand, capacity, edge_tail, edge_head, x_bar):
 def get_graph_based_on_x(edge, x_bar, demand, capacity, dummy_tf=True, complete=True, depot_complete=False):
     demand = demand[:-1]
     n = len(demand)  # last - dummy depot
@@ -331,12 +194,6 @@ def get_graph_based_on_x(edge, x_bar, demand, capacity, dummy_tf=True, complete=
                 src.extend([u, v])
                 dest.extend([v, u])
                 ef.extend([0.0, 0.0])
-
-    # src, dest, ef = [], [], []
-    # for idx, (u, v) in enumerate(zip(edge_head, edge_tail)):
-    #     src.extend([u - 1, v - 1])
-    #     dest.extend([v - 1, u - 1])
-    #     ef.extend([x_bar[idx], x_bar[idx]])
 
     g = dgl.graph((torch.tensor(src).long(), torch.tensor(dest).long()))
 

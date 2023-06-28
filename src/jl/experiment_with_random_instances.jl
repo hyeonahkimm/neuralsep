@@ -150,7 +150,7 @@ for ins in instances
     opt = ins[2]
     k = ins[3]
 
-#     path = "D:\\hyeonah\\cvrpcut\\data\\instances\\" # "../../data/instances/"
+#     path = "D:\\hyeonah\\cvrpcut\\data\\instances\\" 
     path = "../../data/instances/"
     cvrp = readCVRP(string(path, name, ".vrp"), add_dummy=true)
 
@@ -174,10 +174,6 @@ for ins in instances
     else
         max_iter = 50
     end
-#
-#     if cut_options.use_rounded_capacity_cuts
-#         max_iter *= 2
-#     end
 
     start = time()
     @time lowerbound, iter_time, list_time, list_info, iter_cut, const_num, z_list, violations = solve_root_node_relaxation(cvrp, k, my_optimizer, cut_options; max_n_cuts=k, max_iter = max_iter)
@@ -185,11 +181,11 @@ for ins in instances
     @show name, opt, lowerbound
 
     if cut_options.use_learned_rounded_capacity_cuts
-        method = "_learned_ind_mse2"   # "_learned_imp_heuristic"
+        method = "_neuralsep" 
     elseif cut_options.use_exact_rounded_capacity_cuts
         method = "_exact"
     elseif cut_options.use_rounded_capacity_cuts
-        method = "_heuristic_rci_sparse"
+        method = "_cvrpsep"
     end
 
     file = string("../../data/results/exe_time_iter_", name, method, ".pkl")

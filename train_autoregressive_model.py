@@ -16,7 +16,7 @@ from src.model.autoregressive_agent import ConstructiveBCAgent
 from src.utils.dataset import GraphDataset, GraphDataLoader
 from src.utils.graph_utils import get_cut_value, get_current_gs
 from src.utils.train_utils import set_seed
-from src.utils.eval_utils import evaluate_constructive
+from src.utils.eval_utils import evaluate_auto_regressive
 
 
 def load_and_evaluate(config, file_name):
@@ -38,11 +38,10 @@ def load_and_evaluate(config, file_name):
     model.eval()
     for size in instance_sizes:
         gs, _ = load_graphs("./data/data_test_{}.bin".format(size))
-        # g_test = gs[:test_size]  #
-        g_test = numpy.random.choice(gs, test_size)
+        g_test_index = torch.load("./data/data_test_index_{}.bin".format(size))
 
         start = perf_counter()
-        rst = evaluate_constructive(model, g_test, device)
+        rst = evaluate_auto_regressive(model, gs, g_test_index, device)  # (model, data_list, indices, device)
 
         tot_time = (perf_counter() - start) / test_size
         print(size, tot_time, rst)
@@ -55,7 +54,7 @@ def evaluate(model, data_list, device):
         for graph in data_list:
             dl = GraphDataLoader(GraphDataset([graph]),
                                  batch_size=config.train.batch_size,
-                                 shuffle=False,  # config.train.shuffle_dl,
+                                 shuffle=False,
                                  device=device,
                                  add_dummy=True)
             for gs in dl:
@@ -72,7 +71,7 @@ def evaluate(model, data_list, device):
                     done = torch.where(done > no_active, done, no_active)
                     if done.min().bool():
                         break
-                    actions = model.get_batch_actions(gs)
+                    actions, _ = model.get_batch_actions(gs)
                     # selected_node = start_idx + actions
                     dummy_selected = gs.ndata['is_dummy'][actions]
                     done = torch.where(done > dummy_selected, done, dummy_selected)
@@ -113,10 +112,10 @@ def train(config):
     scheduler = CosineAnnealingWarmRestarts(opt, T_0=config.opt.T_0)
     loss_fn = getattr(torch.nn, config.train.loss_fn)()
 
-    wandb.init(project='CVRP-Cutting',
+    wandb.init(project='NeuralSEP',
                entity='hyeonah_kim',
                name=training_id,
-               group='Constructive BC',
+               group='Autoregressive',
                reinit=True,
                config=config.to_dict())
 
@@ -178,11 +177,11 @@ def train(config):
 
                     if test_cut_mse < best_cut_mse:
                         best_cut_mse = test_cut_mse
-                        torch.save(model.state_dict(), "./checkpoints/constructive_{}_best.pt".format(training_id))
+                        torch.save(model.state_dict(), "./checkpoints/autoregressive_{}_best.pt".format(training_id))
 
                 if n_update % config.train.save_every == 0:
-                    torch.save(model.state_dict(), "./checkpoints/constructive_{}.pt".format(training_id))
-                    torch.save(opt.state_dict(), "./checkpoints/opt_constructive_{}.pt".format(training_id))
+                    torch.save(model.state_dict(), "./checkpoints/autoregressive_{}.pt".format(training_id))
+                    torch.save(opt.state_dict(), "./checkpoints/opt_autoregressive_{}.pt".format(training_id))
 
                 wandb.log(log_dict)
 
@@ -193,5 +192,5 @@ def train(config):
 
 if __name__ == '__main__':
     config = Box.from_yaml(filename=join(os.getcwd(), 'config', 'autoregressive_config.yaml'))
-    # train(config)
-    load_and_evaluate(config, "constructive_220603055004_best")
+    train(config)
+    # load_and_evaluate(config, "autoregressive_pretrained")

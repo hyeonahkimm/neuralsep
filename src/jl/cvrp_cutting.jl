@@ -6,7 +6,7 @@ using Statistics
 using PyCall
 import Base.@kwdef
 
-const py_dir = "../.." #"/home/hannah/workspace/cvrp-cut"
+const py_dir = "../.." 
 
 rounded_capacity_rhs(S::Vector{Int64}, mcvrp::CVRP) = ceil(sum(mcvrp.demand[S]) / mcvrp.capacity)
 
@@ -111,19 +111,9 @@ function exact_rounded_capacity_cuts(edge_x::Matrix{Float64}, optimizer, cvrp::C
     return list_S, list_rhs, all_S, all_rhs, all_z
 end
 
-function exact_rcc_python(edge_x::Matrix{Float64}, cvrp::CVRP)
-    push!(pyimport("sys")."path", py_dir)
-    policy = pyimport("julia_main")
-
-    list_s, list_rhs, list_z, info = policy.get_exact_RCI(edge_x, cvrp.demand, cvrp.capacity)
-
-    return list_s, list_rhs, list_z, info
-end
-
 
 function add_exact_rounded_capacity_cuts!(m, edge_x, g, optimizer, mcvrp)
    S, RHS, _, _, _ = exact_rounded_capacity_cuts(edge_x, optimizer, mcvrp)
-#     S, RHS, _, info = exact_rcc_python(edge_x, mcvrp)
 
     len_s = Int[]
     for s in S
@@ -170,9 +160,8 @@ function learned_rounded_capacity_cuts(edge, x_bar, x_mat, cvrp::CVRP)
     push!(pyimport("sys")."path", py_dir)
     policy = pyimport("julia_main")
 
-#     list_s, list_rhs, list_z, info = policy.get_learned_ind_RCI(edge, x_bar, x_mat, cvrp.demand, cvrp.capacity)  # oneshot
-    list_s, list_rhs, list_z, info = policy.get_learned_imp_RCI(edge, x_bar, cvrp.demand, cvrp.capacity)  # coarsening
-#     list_s, list_rhs, list_z, info = policy.get_learned_seq_RCI(edge, x_bar, cvrp.demand, cvrp.capacity)  # autoregressive
+    list_s, list_rhs, list_z, info = policy.get_learned_coarsening_RCI(edge, x_bar, cvrp.demand, cvrp.capacity)  # coarsening
+#     list_s, list_rhs, list_z, info = policy.get_learned_autoregressive_RCI(edge, x_bar, cvrp.demand, cvrp.capacity)  # autoregressive
 
     return list_s, list_rhs, list_z, info
 end

@@ -38,11 +38,10 @@ def load_and_evaluate(config, file_name):
     model.eval()
     for size in instance_sizes:
         gs, _ = load_graphs("./data/data_test_{}.bin".format(size))
-        g_test = gs[:test_size]  #
-        # g_test = numpy.random.choice(gs, test_size)
+        g_test_index = torch.load("./data/data_test_index_{}.bin".format(size))
 
         start = perf_counter()
-        rst = evaluate_coarsening(model, g_test, device, max_iter=config.train.n_iterations, ratio=config.train.contraction_ratio)
+        rst = evaluate_coarsening(model, gs, g_test_index, device, max_iter=config.train.n_iterations, ratio=config.train.contraction_ratio)
 
         tot_time = (perf_counter() - start) / test_size
         print(size, tot_time, rst)
@@ -56,12 +55,11 @@ def evaluate(model, data_list, device):
         for graph in data_list:
             dl = GraphDataLoader(GraphDataset([graph]),
                                  batch_size=config.train.batch_size,
-                                 shuffle=False,  # config.train.shuffle_dl,
+                                 shuffle=False,
                                  device=device)
             for gs in dl:
                 s_hat = gs.ndata['s_hat'].view(gs.batch_size, -1)
                 m_nids = {}
-                # m_nids = []
 
                 for n_iter in range(config.train.n_iterations):
                     probs = model(gs)
@@ -80,14 +78,6 @@ def evaluate(model, data_list, device):
                 s_pred = []
                 for b_id, nid in enumerate(nid_chunk):
                     sets = torch.zeros(graph.num_nodes(), device=gs.device)
-
-                    # x = gs.edata['x_val'][gs.edge_ids([nid[0] for _ in range(len(nid[1:]))], nid[1:])]
-                    # min_nid = nid[x.argmin() + 1].item()
-                    #
-                    # for sn in nid.tolist():
-                    #     nodes = m_nids[sn]
-                    #     if sn == min_nid:
-                    #         sets[nodes - m_nids[nid[0].item()][0]] = 1
 
                     s_prob = probs[nid].view(-1)
                     s_prob[0] = 0.
@@ -114,7 +104,6 @@ def evaluate(model, data_list, device):
             s_hat_list.extend(s_hat.view(-1).tolist())
 
             cut_hat = [get_cut_value(graph, l) for l in s_hat.tolist()]
-            # cut_pred = [get_expected_cut(g, l) for g, l in zip(g_list, s_pred)]
             cut_pred = [get_cut_value(graph, l) for l in s_pred.tolist()]
 
             cut_hat_list.extend(cut_hat)
@@ -147,13 +136,10 @@ def train(config):
     scheduler = CosineAnnealingWarmRestarts(opt, T_0=config.opt.T_0)
     loss_fn = getattr(torch.nn, config.train.loss_fn)()
 
-    # model.load_state_dict(torch.load("./checkpoints/imp_bcagent_220311092127.pt", map_location=device))
-    # scheduler.load_state_dict(torch.load("./checkpoints/opt_imp_bcagent_220311092127.pt", map_location=device))
-
-    wandb.init(project='CVRP-Cutting',
+    wandb.init(project='NeuralSEP',
                entity='hyeonah_kim',
                name=training_id,
-               group='Improvement BC',
+               group='Coarsening',
                reinit=True,
                config=config.to_dict())
 
@@ -165,8 +151,6 @@ def train(config):
                                        random_state=config.train.seed)
 
     n_update = 0
-
-    # g_train, _ = load_graphs("./data/data_random_nn.bin")
 
     data = GraphDataset(g_train)
     dl = GraphDataLoader(data,
@@ -201,18 +185,6 @@ def train(config):
                 else:
                     loss = loss_fn(pred_y, train_g.ndata['s_hat'].float())
 
-                if config.train.penalty_loss:
-                    dmd = scatter_sum((train_g.ndata['demand'] * pred_y).view(-1), train_g.ndata['batch'].view(-1))
-                    d_hat = scatter_sum((train_g.ndata['demand'].view(-1) * train_g.ndata['s_hat'].view(-1)),
-                                        train_g.ndata['batch'].view(-1))
-                    # tot = scatter_sum(train_g.ndata['demand'].view(-1), train_g.ndata['batch'].view(-1))
-                    capacity = scatter_max(train_g.ndata['capacity'].view(-1), train_g.ndata['batch'].view(-1))[0]
-                    m = scatter_max(train_g.ndata['M'].view(-1), train_g.ndata['batch'].view(-1))[0]
-                    dmd = dmd / capacity  # should be dmd > M
-                    loss += torch.nn.functional.relu(m - dmd).mean()
-                    # d_hat = d_hat / capa
-                    # loss += torch.nn.functional.mse_loss(dmd / M, d_hat/M)  # M can be 0
-
                 opt.zero_grad()
                 loss.backward()
                 opt.step()
@@ -233,24 +205,18 @@ def train(config):
                     test_s_mse, test_cut_mse, feasibility = evaluate(model, g_test[:10], device)
                     eval_time = perf_counter() - start
                     model.train()
-                    # log_dict['train_mse'] = train_mse
                     log_dict['test_mse'] = test_s_mse
                     log_dict['test_cut_mse'] = test_cut_mse
                     log_dict['eval_time'] = eval_time
                     log_dict['feasibility'] = feasibility
-                    # print(log_dict)
 
                     if test_cut_mse < best_cut_mse:
                         best_cut_mse = test_cut_mse
-                        torch.save(model.state_dict(), "./checkpoints/imp_bcagent_{}_best.pt".format(training_id))
+                        torch.save(model.state_dict(), "./checkpoints/coarsening_agent_{}_best.pt".format(training_id))
 
                 if n_update % config.train.save_every == 0:
-                    torch.save(model.state_dict(), "./checkpoints/imp_bcagent_{}.pt".format(training_id))
-                    torch.save(opt.state_dict(), "./checkpoints/opt_imp_bcagent_{}.pt".format(training_id))
-                    # torch.save(model.state_dict(),
-                    #            join(wandb.run.dir, "model_{}_{}.pt".format(training_id, n_update)))
-                    # torch.save(opt.state_dict(),
-                    #            join(wandb.run.dir, "opt_{}_{}.pt".format(training_id, n_update)))
+                    torch.save(model.state_dict(), "./checkpoints/coarsening_agent_{}.pt".format(training_id))
+                    torch.save(opt.state_dict(), "./checkpoints/opt_coarsening_agent_{}.pt".format(training_id))
 
                 wandb.log(log_dict)
 
@@ -266,9 +232,10 @@ def train(config):
 
 if __name__ == '__main__':
     config = Box.from_yaml(filename=join(os.getcwd(), 'config', 'coarsening_config.yaml'))  # 'config/bc_config.yaml')
-    # train(config)
-    load_and_evaluate(config, "imp_bcagent_220512090054_best")
+    train(config)
+    # load_and_evaluate(config, "coarsening_pretrained")
 
     # for one-shot model
     # config = Box.from_yaml(filename=join(os.getcwd(), 'config', 'oneshot_config.yaml'))
-    # load_and_evaluate(config, "ind_bcagent_220903235415_best")
+    # train(config)
+    # load_and_evaluate(config, "oneshot_pretrained")

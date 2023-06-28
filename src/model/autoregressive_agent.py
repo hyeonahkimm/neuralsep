@@ -48,7 +48,7 @@ class ConstructiveBCAgent(nn.Module):
 
         return prob_chunks_padded, num_action_per_graph
 
-    def get_batch_actions(self, gs: dgl.graph):
+    def get_batch_actions(self, gs: dgl.graph, sampling=False, temperature=1.0):
         active_nid = torch.nonzero(gs.ndata['active']).view(-1)
 
         if self.training:  # have to select from labels to keep labels valid
@@ -71,12 +71,19 @@ class ConstructiveBCAgent(nn.Module):
 
             sum_label = scatter(active_labels, gs.ndata['batch'][gs.ndata['active'] == 1].view(-1), reduce='sum')
             prob = label_chunks_padded / sum_label.view(-1, 1)
+            actions = prob.multinomial(1).view(-1)
+            selected_prob = prob.gather(1, actions.view(1, -1))
+        elif sampling:
+            with torch.no_grad():
+                prob, num_action_per_graph = self.get_batch_probs(gs, temp=temperature)
+            actions = prob.multinomial(1).view(-1)
+            selected_prob = prob.gather(1, actions.view(1, -1))
         else:
             with torch.no_grad():
                 prob, num_action_per_graph = self.get_batch_probs(gs)
+            selected_prob, actions = prob.max(-1)
 
-        actions = prob.multinomial(1).view(-1)
         cum_num_actions = torch.cumsum(num_action_per_graph, dim=0)
         actions = torch.cat([actions[0].view(-1, 1), (actions[1:] + cum_num_actions[:-1]).view(-1, 1)], dim=0).view(-1)
 
-        return active_nid[actions]
+        return active_nid[actions], selected_prob.view(-1)
