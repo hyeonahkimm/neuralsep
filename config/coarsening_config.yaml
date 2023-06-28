@@ -16,7 +16,6 @@ train:
   num_clusters: 3
   loss_fn: BCELoss
   positive_weight: True
-  penalty_loss: False
   save_every: 64
   eval_every: 64
   device: cpu

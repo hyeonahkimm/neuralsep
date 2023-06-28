@@ -129,5 +129,6 @@ dmypy.json
 .pyre/
 
 # checkpoints
-data/data_random
+data/data_random.bin
+data/results/
 wandb/
