@@ -18,7 +18,7 @@ train:
   positive_weight: True
   save_every: 64
   eval_every: 64
-  device: cpu
+  device: cuda:0
 opt:
   lr: 0.0005
   T_0: 32
