@@ -1,0 +1,25 @@
+model:
+  node_dim: 2
+  edge_dim: 1
+  latent_dim: 128
+  n_layer: 5
+train:
+  seed: 1234
+  data_file: data_random
+  test_size: 0.1
+  data_size: 100
+  batch_size: 16
+  shuffle_dl: True
+  n_epochs: 20
+  n_iterations: 50
+  contraction_ratio: 0.75
+  num_clusters: 3
+  loss_fn: BCELoss
+  positive_weight: True
+  penalty_loss: False
+  save_every: 64
+  eval_every: 64
+  device: cpu
+opt:
+  lr: 0.0005
+  T_0: 32
