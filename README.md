@@ -15,7 +15,7 @@ pip install -r requirements.txt
 
 **Note** 
 - If you use the different cuda version, please modify the URL for `torch-scatter` in `requirements.txt` before running it; see [here](https://pytorch-geometric.readthedocs.io/en/1.7.2/notes/installation.html).
-- If you have any trouble with `dgl`, please refer [here](https://www.dgl.ai/pages/start.html)
+- If you have any trouble with `dgl`, please refer [here](https://www.dgl.ai/pages/start.html).
 - To run cutting plane embedded NeuralSEP, other installations are required.
 
 ## Usage
@@ -23,6 +23,7 @@ pip install -r requirements.txt
 ```
 python train_coarsening_model.py 
 ```
+Training data can be downloaded [here](https://drive.google.com/file/d/1TAYlo1xTWxqPpLVeVkmLrbIlMd1TxvdU/view?usp=sharing).
 
 ### Evaluating with cutting plane methods
 ```
