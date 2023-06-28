@@ -31,7 +31,7 @@ julia experiment_with_random_instances.jl
 ```
 
 - To run the autoregressive model, the function `learned_rounded_capacity_cuts` in `src/jl/cvrp_cutting.jl` needs to be modified.
-- You can change pre-trained model directories in `julia_main.py' for each model.
+- You can change pre-trained model directories in `julia_main.py` for each model.
 
 
 ## Others
@@ -46,6 +46,15 @@ julia experiment_with_random_instances.jl
 - Graphs
 - PyCall
 - Pickle
+
+**Note:** to use the created python env, activate the env and re-configure PyCall when installing PyCall in julia.
+```
+using Pkg
+ENV["PYTHON"] = Sys.which("python")
+ENV["PYCALL_JL_RUNTIME_PYTHON"] = Sys.which("python")
+Pkg.add("PyCall")
+Pkg.build("PyCall")
+```
 
 ### CPLEX (1.2.10)
 A license is required (the student license is free).
