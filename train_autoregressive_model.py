@@ -113,7 +113,6 @@ def train(config):
     loss_fn = getattr(torch.nn, config.train.loss_fn)()
 
     wandb.init(project='NeuralSEP',
-               entity='hyeonah_kim',
                name=training_id,
                group='Autoregressive',
                reinit=True,
