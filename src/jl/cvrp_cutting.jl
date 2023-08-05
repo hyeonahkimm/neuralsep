@@ -271,101 +271,11 @@ function add_rounded_capacity_cuts!(m, cut_manager, g, mcvrp, datapack::CutSepar
     return length(S), mean(len_s), max_violation
 end
 
-function add_strengthened_comb_inequalities!(m, cut_manager, datapack, k; max_n_cuts = 10)
-    H, T, SCI_RHS = strengthened_comb_inequalities!(
-        datapack.demand,
-        datapack.capacity,
-        datapack.edge_tail,
-        datapack.edge_head,
-        datapack.edge_x,
-        max_n_cuts = max_n_cuts,
-        K = k
-    )
-
-    g = datapack.g
-    x = m[:x]
-
-    @constraint(
-        m, [i in 1:length(H)],
-        sum(x[e] for e in δ(g, H[i])) +
-        sum(
-            sum(x[e] for e in δ(g, T[i][j]))
-            for j in 1:length(T[i])
-        )
-        >= SCI_RHS[i]
-    )
-
-    return length(H)
-end
-
-function add_framed_capacity_inequalities!(m, cut_manager, datapack; max_n_cuts = 10, max_n_tree_nodes = 10)
-    SS, FCI_RHS = framed_capacity_inequalities!(
-        cut_manager,
-        datapack.demand,
-        datapack.capacity,
-        datapack.edge_tail,
-        datapack.edge_head,
-        datapack.edge_x,
-        max_n_tree_nodes = max_n_tree_nodes,
-        max_n_cuts = max_n_cuts
-    )
-
-    g = datapack.g
-    x = m[:x]
-
-    for j in 1:length(SS)
-        subsets = SS[j]
-
-        S = reduce(vcat, subsets)
-        @assert S == unique(S)
-
-        @constraint(m,
-            sum(x[e] for e in δ(g, S)) +
-            sum(
-                sum(x[e] for e in δ(g, Si))
-                for Si in subsets
-            )
-            >= FCI_RHS[j]
-        )
-    end
-    return length(SS)
-end
-
-function add_homogeneous_multistar_inequalities!(m, cut_manager, datapack; max_n_cuts = 10)
-    N_ms, T_ms, C_ms, A_ms, B_ms, L_ms = multistar_inequalities!(
-        cut_manager,
-        datapack.demand,
-        datapack.capacity,
-        datapack.edge_tail,
-        datapack.edge_head,
-        datapack.edge_x,
-        max_n_cuts = max_n_cuts
-    )
-
-    g = datapack.g
-    x = m[:x]
-
-    for i in 1:length(N_ms)
-        @constraint(m,
-            B_ms[i] * sum(x[e] for e in δ(g, N_ms[i]))
-            -
-            A_ms[i] * sum(x[e] for e in between(C_ms[i], T_ms[i]))
-            >=
-            L_ms[i]
-        )
-    end
-
-    return length(N_ms)
-end
-
 
 @kwdef mutable struct CutOptions
     use_exact_rounded_capacity_cuts :: Bool = false
     use_learned_rounded_capacity_cuts :: Bool = false
     use_rounded_capacity_cuts :: Bool = true
-    use_framed_capacity_inequalities :: Bool = false
-    use_strenghtened_comb_inequalities :: Bool = false
-    use_homogeneous_multistar_inequalities :: Bool = false
 end
 
 function solve_root_node_relaxation(cvrp::CVRPLIB.CVRP, k::Int, optimizer, cut_options::CutOptions; max_n_cuts = 10, max_n_tree_nodes = 10, max_iter = -1)
@@ -518,53 +428,6 @@ function solve_root_node_relaxation(cvrp::CVRPLIB.CVRP, k::Int, optimizer, cut_o
         end
 
 
-        #################################################################
-        # framed capacity inequalities
-        #################################################################
-        if n_cuts == 0 && cut_options.use_framed_capacity_inequalities
-            n_new_cuts = add_framed_capacity_inequalities!(m, cut_manager, datapack; max_n_cuts=max_n_cuts, max_n_tree_nodes=max_n_tree_nodes)
-            println("FCI Cuts = $n_new_cuts")
-            n_cuts += n_new_cuts
-        end
-
-        #################################################################
-        # strenghtened comb inequalities
-        #################################################################
-        if n_cuts == 0 && cut_options.use_strenghtened_comb_inequalities
-            n_new_cuts = add_strengthened_comb_inequalities!(m, cut_manager, datapack, k; max_n_cuts=max_n_cuts)
-            println("Comb = $n_new_cuts")
-            n_cuts += n_new_cuts
-        end
-
-        #################################################################
-        # homogeneous multistar inequalities
-        #################################################################
-        if n_cuts == 0 && cut_options.use_homogeneous_multistar_inequalities
-            n_new_cuts = add_homogeneous_multistar_inequalities!(m, cut_manager, datapack; max_n_cuts=max_n_cuts)
-            println("Multistar = $n_new_cuts")
-            n_cuts += n_new_cuts
-        end
-
-
-        ###############################################################
-        # hypotour inequalities   #not working properly....
-        ###############################################################
-        # Tail, Head, Coeff, HI_RHS = hypotour_inequality!(
-        #     cut_manager,
-        #     cvrp.demand[1:cvrp.dimension],
-        #     cvrp.capacity,
-        #     positive_edge_tail,
-        #     positive_edge_head,
-        #     positive_edge_x,
-        #     max_n_cuts = 300
-        # )
-        # n_cuts += length(Tail)
-        # for i in 1:length(Tail)
-        #     @constraint(m,
-        #         sum(Coeff[i][j] * x[(Tail[i][j], Head[i][j])] for j in 1:length(Tail[i]))
-        #         <= HI_RHS[i]
-        #     )
-        # end
 
         total_n_cuts += n_cuts
         total_iter += 1
@@ -683,32 +546,6 @@ function generate_data(cvrp::CVRPLIB.CVRP, k::Int, optimizer, cut_options::CutOp
             n_cuts += n_new_cuts
         end
 
-        #################################################################
-        # framed capacity inequalities
-        #################################################################
-        if n_cuts == 0 && cut_options.use_framed_capacity_inequalities
-            n_new_cuts = add_framed_capacity_inequalities!(m, cut_manager, datapack; max_n_cuts=max_n_cuts, max_n_tree_nodes=max_n_tree_nodes)
-            println("FCI Cuts = $n_new_cuts")
-            n_cuts += n_new_cuts
-        end
-
-        #################################################################
-        # strenghtened comb inequalities
-        #################################################################
-        if n_cuts == 0 && cut_options.use_strenghtened_comb_inequalities
-            n_new_cuts = add_strengthened_comb_inequalities!(m, cut_manager, datapack, k; max_n_cuts=max_n_cuts)
-            println("Comb = $n_new_cuts")
-            n_cuts += n_new_cuts
-        end
-
-        #################################################################
-        # homogeneous multistar inequalities
-        #################################################################
-        if n_cuts == 0 && cut_options.use_homogeneous_multistar_inequalities
-            n_new_cuts = add_homogeneous_multistar_inequalities!(m, cut_manager, datapack; max_n_cuts=max_n_cuts)
-            println("Multistar = $n_new_cuts")
-            n_cuts += n_new_cuts
-        end
 
         #################################################################
         # EXACT rounded capacity cuts

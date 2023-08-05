@@ -138,9 +138,6 @@ cut_options = CutOptions(
     use_exact_rounded_capacity_cuts         = false,
     use_learned_rounded_capacity_cuts       = true,
     use_rounded_capacity_cuts               = false,
-    use_framed_capacity_inequalities        = false,
-    use_strenghtened_comb_inequalities      = false,
-    use_homogeneous_multistar_inequalities  = false
 )
 
 println(cut_options)

@@ -16,9 +16,6 @@ include("./cvrp_cutting.jl")
     use_exact_rounded_capacity_cuts :: Bool = false
     use_learned_rounded_capacity_cuts :: Bool = false
     use_rounded_capacity_cuts :: Bool = true
-    use_framed_capacity_inequalities :: Bool = false
-    use_strenghtened_comb_inequalities :: Bool = false
-    use_homogeneous_multistar_inequalities :: Bool = false
 end
 
 
@@ -43,9 +40,6 @@ function experiment(name::String)
         use_rounded_capacity_cuts               = false,
         use_learned_rounded_capacity_cuts       = false,
         use_exact_rounded_capacity_cuts         = true,
-        use_framed_capacity_inequalities        = false,
-        use_strenghtened_comb_inequalities      = false,
-        use_homogeneous_multistar_inequalities  = false
     )
 
     @time lowerbound, list_e, list_x, list_s, list_rhs, list_z = generate_data(cvrp, k, my_optimizer, cut_options; max_n_cuts=k)
@@ -93,9 +87,6 @@ end
 #         use_rounded_capacity_cuts               = false,
 #         use_learned_rounded_capacity_cuts       = false,
 #         use_exact_rounded_capacity_cuts         = true,
-#         use_framed_capacity_inequalities        = false,
-#         use_strenghtened_comb_inequalities      = false,
-#         use_homogeneous_multistar_inequalities  = false
 #     )
 #
 #     lowerbound, list_e, list_x, list_s, list_rhs, list_z = generate_data(cvrp, k, my_optimizer, cut_options; max_n_cuts=k)
@@ -144,9 +135,6 @@ function get_cvrp_data(problem::Any, coords::Matrix, demands::Vector, k::Int, op
         use_rounded_capacity_cuts               = false,
         use_learned_rounded_capacity_cuts       = false,
         use_exact_rounded_capacity_cuts         = true,
-        use_framed_capacity_inequalities        = false,
-        use_strenghtened_comb_inequalities      = false,
-        use_homogeneous_multistar_inequalities  = false
     )
 
 #     lowerbound, list_e, list_x, list_s, list_rhs, list_z = generate_data(cvrp, k, my_optimizer, cut_options; max_n_cuts=k)
