@@ -8,7 +8,7 @@ This repository provides implemented codes for the paper, NeuralSEP.
 
 ## Python requirement
 Clone project and create an environment with conda:
-```
+```bash
 conda create -n neuralsep python=3.8
 conda activate neuralsep
 
@@ -23,13 +23,13 @@ pip install -r requirements.txt
 
 ## Usage
 ### Training
-```
+```bash
 python train_coarsening_model.py 
 ```
 Training data can be downloaded [here](https://drive.google.com/file/d/1TAYlo1xTWxqPpLVeVkmLrbIlMd1TxvdU/view?usp=sharing).
 
 ### Evaluating with cutting plane methods
-```
+```bash
 cd src/jl
 julia experiment_with_random_instances.jl
 ```
@@ -52,7 +52,7 @@ julia experiment_with_random_instances.jl
 - Pickle
 
 **Note:** to use the created python env, activate the env and re-configure PyCall when installing PyCall in julia.
-```
+```julia
 using Pkg
 ENV["PYTHON"] = Sys.which("python")
 ENV["PYCALL_JL_RUNTIME_PYTHON"] = Sys.which("python")
