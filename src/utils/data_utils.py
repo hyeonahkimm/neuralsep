@@ -128,8 +128,6 @@ def get_julia_data(newly_cal=True, name=None):
 
 
 def save_graphs_sols(complete_g=True, file_name="data"):
-    # df = pd.read_csv('../../data/cvrp_list.csv')
-    # instances = df['Instance']
     path = os.path.join(os.pardir, os.pardir, 'data', 'pickles')
     instances = os.listdir(path)
     size = 200
@@ -138,9 +136,6 @@ def save_graphs_sols(complete_g=True, file_name="data"):
     print(len(instances))
     gs, labels = [], []  # no need to save rhs
     for instance in tqdm(instances):
-        # print(instance)
-        # for suffix in ['', '_c', '_f', '_r', '_m']:
-        #     file = "../../data/pickles/{}{}.pickle".format(instance, suffix)
         file = "../../data/pickles/{}".format(instance)
         if os.path.isfile(file) and not instance.startswith('E'):
             data = get_julia_data(newly_cal=False, name=instance.split('.')[0])
