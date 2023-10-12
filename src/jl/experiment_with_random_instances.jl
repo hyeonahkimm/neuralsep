@@ -147,7 +147,6 @@ for ins in instances
     opt = ins[2]
     k = ins[3]
 
-#     path = "D:\\hyeonah\\cvrpcut\\data\\instances\\" 
     path = "../../data/instances/"
     cvrp = readCVRP(string(path, name, ".vrp"), add_dummy=true)
 
