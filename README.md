@@ -1,9 +1,7 @@
 # NeuralSEP: A Neural Separation Algorithm for the Rounded Capacity Inequalities
 
 This repository provides implemented codes for the paper, NeuralSEP. 
-> A Neural Separation Algorithm for the Rounded Capacity Inequalities
->
-> [https://arxiv.org/abs/2306.17283](https://arxiv.org/abs/2306.17283)
+> A Neural Separation Algorithm for the Rounded Capacity Inequalities.
 
 
 ## Python requirement
