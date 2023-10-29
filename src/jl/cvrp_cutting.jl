@@ -1,5 +1,5 @@
 using CPLEX, JuMP, Graphs
-using CVRPLIB # ] add https://github.com/chkwon/CVRPLIB.jl
+using CVRPLIB 
 using CVRPSEP # ] add https://github.com/chkwon/CVRPSEP.jl
 using LinearAlgebra
 using Statistics

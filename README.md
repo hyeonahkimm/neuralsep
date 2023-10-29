@@ -12,7 +12,7 @@ Clone project and create an environment with conda:
 conda create -n neuralsep python=3.8
 conda activate neuralsep
 
-conda install pytorch==1.12.1 torchvision==0.13.1 torchaudio==0.12.1 cudatoolkit=11.3 -c pytorch
+conda install pytorch==1.12.1 torchvision==0.13.1 torchaudio==0.12.1 cudatoolkit==11.3 -c pytorch
 pip install -r requirements.txt
 ```
 
@@ -23,10 +23,12 @@ pip install -r requirements.txt
 
 ## Usage
 ### Training
+Download [`data_random.bin`](https://drive.google.com/file/d/1TAYlo1xTWxqPpLVeVkmLrbIlMd1TxvdU/view?usp=sharing) and place it in the `\data` directory.
+Then, run the following code to train:
 ```console
 python train_coarsening_model.py 
 ```
-Training data can be downloaded [here](https://drive.google.com/file/d/1TAYlo1xTWxqPpLVeVkmLrbIlMd1TxvdU/view?usp=sharing).
+
 
 ### Evaluating with cutting plane methods
 ```console
@@ -41,15 +43,11 @@ julia experiment_with_random_instances.jl
 ## Others
 ### Julia requirement
 - Julia >= 1.8.3
-- JuMP
-- Gurobi
-- CPLEX
-- TSPLIB
-- CVRPLIB
-- CVRPSEP
-- Graphs
-- PyCall
-- Pickle
+
+```julia
+] add JuMP Gurobi CPLEX TSPLIB CVRPLIB Graphs PyCall Pickle
+] add https://github.com/chkwon/CVRPSEP.jl.git
+```
 
 **Note:** to use the created python env, activate the env and re-configure PyCall when installing PyCall in julia.
 ```julia

@@ -6,7 +6,7 @@ call_julia.jl:
 =#
 using TSPLIB
 using CVRPLIB
-using CVRPSEP
+# using CVRPSEP
 using CPLEX, JuMP
 import Base.@kwdef
 include("./cvrp_cutting.jl")
