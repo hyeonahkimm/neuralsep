@@ -130,5 +130,5 @@ dmypy.json
 
 # checkpoints
 data/data_random.bin
-data/results/
+data/results/*.pkl
 wandb/
