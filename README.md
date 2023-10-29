@@ -23,13 +23,13 @@ pip install -r requirements.txt
 
 ## Usage
 ### Training
-```bash
+```console
 python train_coarsening_model.py 
 ```
 Training data can be downloaded [here](https://drive.google.com/file/d/1TAYlo1xTWxqPpLVeVkmLrbIlMd1TxvdU/view?usp=sharing).
 
 ### Evaluating with cutting plane methods
-```bash
+```console
 cd src/jl
 julia experiment_with_random_instances.jl
 ```
