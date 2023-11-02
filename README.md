@@ -59,6 +59,4 @@ Pkg.build("PyCall")
 ### CPLEX (1.2.10)
 A license is required (the student license is free).
 
-### Gurobi (10.0.1)
-A license is required (the student license is free).
 
