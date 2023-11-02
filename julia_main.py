@@ -7,7 +7,7 @@ import gurobipy as gp
 import numpy
 import torch
 from box import Box
-from gurobipy import GRB
+# from gurobipy import GRB
 from torch_scatter import scatter
 
 from src.model.autoregressive_agent import ConstructiveBCAgent
