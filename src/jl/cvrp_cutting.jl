@@ -156,9 +156,10 @@ end
 
 function learned_rounded_capacity_cuts(edge, x_bar, x_mat, cvrp::CVRP)
     push!(pyimport("sys")."path", py_dir)
-    policy = pyimport("pyjulia_main")
+    policy = pyimport("julia_main")
 
-    list_s, list_rhs, list_z, info = policy.get_learned_rci(edge, x_bar,  cvrp.demand, cvrp.capacity, method="coarsening")
+    list_s, list_rhs, list_z, info = policy.get_learned_coarsening_RCI(edge, x_bar, cvrp.demand, cvrp.capacity)  # coarsening
+#     list_s, list_rhs, list_z, info = policy.get_learned_autoregressive_RCI(edge, x_bar, cvrp.demand, cvrp.capacity)  # autoregressive
 
     return list_s, list_rhs, list_z, info
 end
