@@ -120,13 +120,11 @@ function add_exact_rounded_capacity_cuts!(m, edge_x, g, optimizer, mcvrp)
         push!(len_s, length(s))
     end
 
-    push!(info, mean(len_s))
-
     x = m[:x]
 
     @constraint(m, [i in 1:length(RHS)], sum(x[e] for e in δ(g, S[i])) >= 2 * RHS[i])
 
-    return S, RHS, info
+    return S, RHS
 end
 
 function find_exact_rounded_capacity_cuts!(m, edge_x, g, optimizer, mcvrp)
@@ -158,10 +156,9 @@ end
 
 function learned_rounded_capacity_cuts(edge, x_bar, x_mat, cvrp::CVRP)
     push!(pyimport("sys")."path", py_dir)
-    policy = pyimport("julia_main")
+    policy = pyimport("pyjulia_main")
 
-    list_s, list_rhs, list_z, info = policy.get_learned_coarsening_RCI(edge, x_bar, cvrp.demand, cvrp.capacity)  # coarsening
-#     list_s, list_rhs, list_z, info = policy.get_learned_autoregressive_RCI(edge, x_bar, cvrp.demand, cvrp.capacity)  # autoregressive
+    list_s, list_rhs, list_z, info = policy.get_learned_rci(edge, x_bar,  cvrp.demand, cvrp.capacity, method="coarsening")
 
     return list_s, list_rhs, list_z, info
 end
@@ -203,16 +200,12 @@ function add_learned_rounded_capacity_cuts!(m, edge, x_bar, x_mat, g, mcvrp)
 
         push!(violations, 2 * rounded_capacity_rhs(S[i], mcvrp)  - sum(x_vals[e] for e in δ(g, S[i])))
     end
-#    @constraint(m, [i in 1:length(S)], sum(x[e] for e in δ(g, S[i])) >= 2 * RHS[i])
-#    @show m
-
+    
     if length(violations) > 0
         max_violation = maximum(violations)
     else
         max_violation = 0.0
     end
-
-#    return length(S)
    return S, RHS, info, mean(len_s), max_violation
 end
 
@@ -256,8 +249,6 @@ function add_rounded_capacity_cuts!(m, cut_manager, g, mcvrp, datapack::CutSepar
             # x(S:S) <= |S| - k(S)
             @constraint(m, sum(x[e] for e in inner(S[i])) <= RHS[i])
         end
-
-#         @constraint(m, sum(x[e] for e in δ(g, S[i])) >= 2 * rounded_capacity_rhs(S[i], mcvrp) )
         push!(violations, 2 * rounded_capacity_rhs(S[i], mcvrp)  - sum(x_vals[e] for e in δ(g, S[i])))
     end
 
@@ -267,7 +258,6 @@ function add_rounded_capacity_cuts!(m, cut_manager, g, mcvrp, datapack::CutSepar
         max_violation = 0.0
     end
 
-#     return length(cut_manager.new_cuts), mean!(len_s)
     return length(S), mean(len_s), max_violation
 end
 
@@ -416,18 +406,15 @@ function solve_root_node_relaxation(cvrp::CVRPLIB.CVRP, k::Int, optimizer, cut_o
                 edge_x_mat[edge_tail[i], edge_head[i]] = edge_x[i]
                 edge_x_mat[edge_head[i], edge_tail[i]] = edge_x[i]
             end
-#             n_new_cuts = add_exact_rounded_capacity_cuts!(m, edge_x_mat, g, optimizer, cvrp)
             start = time()
-            s, rhs, info = add_exact_rounded_capacity_cuts!(m, edge_x_mat, g, optimizer, cvrp)
+            s, rhs = add_exact_rounded_capacity_cuts!(m, edge_x_mat, g, optimizer, cvrp)
             push!(list_time, time() - start)
-            push!(exe_info, info)
+            # push!(exe_info, info)
             n_new_cuts = length(s)
             push!(iter_cut, n_new_cuts)
 #             println("Exact RCC Cuts = $n_new_cuts")
             n_cuts += n_new_cuts
         end
-
-
 
         total_n_cuts += n_cuts
         total_iter += 1
@@ -438,144 +425,7 @@ function solve_root_node_relaxation(cvrp::CVRPLIB.CVRP, k::Int, optimizer, cut_o
 
     end
 
-    # gap = ub - objective_value(m)
-    # fixed_edges = CartesianIndex{2}[]
-    # for e in E
-    #     if reduced_cost(x[e]) > gap
-    #         push!(fixed_edges, CartesianIndex(e))
-    #     end
-    # end
-    # @show length(E)
-    # @show length(fixed_edges)
-    # fixed_ratio = length(fixed_edges) / length(E)
-    # @show round(fixed_ratio * 100, digits = 2)
     @show total_n_cuts
 
     return objective_value(m), iter_time, list_time, exe_info, iter_cut, const_num, z_list, max_violations
-    # return fixed_edges
-end
-
-
-function generate_data(cvrp::CVRPLIB.CVRP, k::Int, optimizer, cut_options::CutOptions; max_n_cuts = 10, max_n_tree_nodes = 10)
-
-    list_e = Vector{Tuple{Int, Int}}[]
-    list_x = Vector{Float64}[]
-    list_s = Vector{Vector{Int}}[]
-    list_rhs = Vector{Float64}[]
-    list_z = Vector{Float64}[]
-
-    _weights = Float64.(cvrp.weights[1:end-1, 1:end-1])
-    @assert issymmetric(_weights)
-
-    # If there is a non-diagonal zero term in _weights,
-    # add a very small number, so that it can create an edge.
-    for i in 1:size(_weights, 1)
-        for j in 1:size(_weights, 2)
-            if i != j && _weights[i, j] == 0
-                _weights[i, j] = 1e-8
-            end
-        end
-    end
-
-    g = Graph(_weights)
-    E = _edges(g)
-    datapack = CutSeparationInput(
-        cvrp.demand[1:cvrp.dimension],
-        cvrp.capacity,
-        Int[],
-        Int[],
-        Float64[],
-        g,
-        E
-    )
-
-    edge_cost(e::Tuple) = _weights[e...]
-
-    m = Model(optimizer)
-    @variable(m, x[e in E] >= 0)
-    @objective(m, Min, sum(edge_cost(e) * x[e] for e in E))
-
-    for e in E
-        if in(e, δ(g, cvrp.depot))
-            @constraint(m, x[e] <= 2)
-        else
-            @constraint(m, x[e] <= 1)
-        end
-    end
-
-    @constraint(m, [i in cvrp.customers], sum(x[e] for e in δ(g, i)) == 2)
-    @constraint(m, sum(x[e] for e in δ(g, cvrp.depot)) == 2 * k)
-
-    total_n_cuts = 0
-
-    cut_manager = CutManager()
-    prev_obj = 0.0
-    count = 0
-    while true
-        optimize!(m)
-#         @show count, objective_value(m)
-        if objective_value(m) <= prev_obj
-            count += 1
-            if count >= 50 # max no. of iterations without improvements
-                break
-            end
-        else
-            count = 0
-        end
-        prev_obj = objective_value(m)
-
-        edge_tail = first.(E)
-        edge_head = last.(E)
-        edge_x = value.(x).data
-        idx = findall(v -> v > 0.0, edge_x)
-        datapack.edge_tail = edge_tail[idx]
-        datapack.edge_head = edge_head[idx]
-        datapack.edge_x = edge_x[idx]
-
-        n_cuts = 0
-
-        push!(list_e, E[idx])
-        push!(list_x, edge_x[idx])
-
-        #################################################################
-        # rounded capacity cuts
-        #################################################################
-        if n_cuts == 0 && cut_options.use_rounded_capacity_cuts
-            n_new_cuts = add_rounded_capacity_cuts!(m, cut_manager, datapack; max_n_cuts=max_n_cuts)
-            println("RCC Cuts = $n_new_cuts")
-            n_cuts += n_new_cuts
-        end
-
-
-        #################################################################
-        # EXACT rounded capacity cuts
-        #################################################################
-        edge_x_mat = zeros(size(_weights))
-        for i in 1:length(edge_tail)
-            edge_x_mat[edge_tail[i], edge_head[i]] = edge_x[i]
-            edge_x_mat[edge_head[i], edge_tail[i]] = edge_x[i]
-        end
-        if cut_options.use_exact_rounded_capacity_cuts
-            s, rhs, all_s, all_rhs, all_z = add_exact_rci!(m, edge_x_mat, g, optimizer, cvrp)
-            n_new_cuts = length(s)
-            n_cuts += n_new_cuts
-        else
-            s, rhs, all_s, all_rhs, all_z = find_exact_rounded_capacity_cuts!(m, edge_x_mat, g, optimizer, cvrp)
-            n_new_cuts = length(s)
-        end
-        push!(list_s, all_s)
-        push!(list_rhs, all_rhs)
-        push!(list_z, all_z)
-#         println("Exact RCC Cuts = $n_new_cuts")
-
-        total_n_cuts += n_cuts
-
-        ( n_cuts == 0 ) && break
-
-    end
-
-    @show total_n_cuts
-
-    return objective_value(m), list_e, list_x, list_s, list_rhs, list_z
-    # return fixed_edges
 end
