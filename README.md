@@ -44,7 +44,7 @@ julia experiment_with_random_instances.jl
 - Julia >= 1.8.3
 
 ```julia
-] add JuMP Gurobi CPLEX TSPLIB CVRPLIB Graphs PyCall Pickle
+] add JuMP CPLEX TSPLIB CVRPLIB Graphs PyCall Pickle
 ] add https://github.com/chkwon/CVRPSEP.jl.git
 ```
 
